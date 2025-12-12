@@ -17,7 +17,7 @@ function qualifyLead(primaryControl)  {
         function success(result) {
             Xrm.Navigation.openAlertDialog({ text: "Lead Successfully Qualified!" });
 
-            // Update Lead status
+         // Update Lead status
             var statusAttr = formContext.getAttribute("cms_status");
             if (statusAttr) {
                 statusAttr.setValue("Qualified");

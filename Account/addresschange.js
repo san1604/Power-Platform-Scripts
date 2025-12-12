@@ -1,6 +1,7 @@
 function onLoad(executionContext) {
     var formContext = executionContext.getFormContext();
- 
+    console.log(typeof formContext);
+    
     var country = formContext.getAttribute("cms_country").getValue();
  
     // Disable State & City if country not selected
@@ -9,7 +10,7 @@ function onLoad(executionContext) {
         formContext.getControl("cms_city").setDisabled(true);
     }
 }
- 
+onLoad(123)
 function onCountryChange(executionContext) {
     var formContext = executionContext.getFormContext();
     var country = formContext.getAttribute("cms_country").getValue();

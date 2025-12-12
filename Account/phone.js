@@ -56,15 +56,3 @@ function validatePhoneNumber(executionContext) {
         return;
     }
 }
-
-// We can perform CRUD operation using javascript in our app
-// java script function
-// used in this code
-// preventdefault()
-// 
-// 
-// 
-// 
-// 
-// 
-// 
