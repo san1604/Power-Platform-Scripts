@@ -45,10 +45,7 @@ function validatePhoneNumber(executionContext) {
     }
 
     // 3️⃣ Must start with 6/7/8/9
-    if (!/^[6789]/.test(phoneValue)) {
-        fail("Phone number must start with 6, 7, 8, or 9.");
-        return;
-    }
+   
 
     // 4️⃣ Cannot be all zeros
     if (/^0{10}$/.test(phoneValue)) {
