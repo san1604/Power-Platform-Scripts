@@ -9,10 +9,11 @@ function createContractFromAccount(primaryControl) {
         useQuickCreateForm: false
     };
 
-    // Pass raw values only (NO odata.bind)
+    // 👇 Lookup field parameters
     var formParameters = {};
-    formParameters.accountId = accountId;
-    formParameters.accountName = accountName;
+    formParameters["cms_accountid"] = accountId;
+    formParameters["cms_accountidname"] = accountName;
+    formParameters["cms_accountidtype"] = "account";
 
     Xrm.Navigation.openForm(entityFormOptions, formParameters);
 }
