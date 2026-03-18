@@ -1,0 +1,108 @@
+//Plan Overview Data
+Set(varProductRecord,ThisItem.AllData);
+Set(varPlanOverViewList,varProductRecord.PlanOverViewList);
+Set(varPrimiumOverview,varProductRecord.PremiumsOverviewList);
+Set(varTotalEstimatedMonthlyPremium, First(ThisItem.AllData).TotalEstimatedMonthlyPremium);
+Set(varPackageOverviewList,varProductRecord.PackageOverviewList);
+
+
+//Plan Overview Data
+ClearCollect(
+    colPackagePremiumOverview,
+    ForAll(
+        Table(ParseJSON(First(varPackageOverviewList).PackageOverviewList)),
+        {
+           VisionPlanOverviewList: JSON(Value.VisionPlanOverviewList),
+            DentalPlanOverviewList: JSON(Value.DentalPlanOverviewList),
+            RxPlanOverviewList: JSON(Value.RxPlanOverviewList),
+            MedicalPlanOverviewList: JSON(Value.MedicalPlanOverviewList)
+        }
+    )
+);
+Set(varPackagePricingContainer,true);
+
+
+If(Lower("medical") = Lower(First(ThisItem.AllData).FormInstanceType),
+//Plan Overview Data
+ClearCollect(
+    colMedicalPremiumOverview,
+    ForAll(
+        Table(ParseJSON(First(varPlanOverViewList).PlanOverViewList)),
+        {
+           MedicalCoverageLevel: Text(Value.MedicalCoverageLevel),
+            NetworkTier: Text(Value.NetworkTier),
+            Deductible: Text(Value.Deductible),
+            Coinsurance: Text(Value.Coinsurance),
+            OutOfPocket: Text(Value.OutOfPocket)
+        }
+    )
+);
+Set(varMedicalPricingcontainer,true);
+);
+
+If(Lower("dental") = Lower(First(ThisItem.AllData).FormInstanceType),
+//Plan Overview Data
+ClearCollect(
+    colDentalPremiumOverview,
+    ForAll(
+        Table(ParseJSON(First(varPlanOverViewList).PlanOverViewList)),
+        {
+           DentalCoverageLevel: Text(Value.DentalCoverageLevel),
+            NetworkTier: Text(Value.NetworkTier),
+            DentalDeductible:Text(Value.DentalDeductible),
+            DentalOutofPocket: Text(Value.DentalOutofPocket)
+        }
+    )
+);
+Set(varDentalPricingContainer,true);
+);
+
+If(Lower("vision") = Lower(First(ThisItem.AllData).FormInstanceType),
+//Plan Overview Data
+ClearCollect(
+    colVisionPremiumOverview,
+    ForAll(
+        Table(ParseJSON(First(varPlanOverViewList).PlanOverViewList)),
+        {
+            VisionCoverageLevel: Text(Value.VisionCoverageLevel),
+            NetworkTier: Text(Value.NetworkTier),
+            VisionDeductible: Text(Value.VisionDeductible),
+            VisionCoinsurance: Text(Value.VisionCoinsurance),
+            VisionOutofPocket : Text(Value.VisionOutofPocket) 
+        }
+    )
+);
+Set(varVisionPricingContainer,true);
+);
+
+
+If(Lower("rx") = Lower(First(ThisItem.AllData).FormInstanceType),
+//Plan Overview Data
+ClearCollect(
+    colRxPremiumOverview,
+    ForAll(
+        Table(ParseJSON(First(varPlanOverViewList).PlanOverViewList)),
+        {
+            Rx: Text(Value.Rx),
+            RxCostShare: Text(Value.RxCostShare)
+
+        }
+    )
+);
+Set(varRxPricingContainer,true);
+);
+
+
+ClearCollect(
+    colPrimiumOverview,
+    ForAll(
+        Table(ParseJSON(First(varPrimiumOverview).PremiumsOverviewList)),
+        {
+            CoverageLevel: Text(Value.CoverageLevel),
+            NumberOfSubscribers: Value.NumberOfSubscribers,
+            NumberOfMembers: Value.NumberOfMembers,
+            MonthlyPremium: Value.MonthlyPremium
+        }
+    )
+);
+

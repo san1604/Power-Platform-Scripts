@@ -1,19 +1,30 @@
-function createContractFromAccount(primaryControl) {
+function createContractAndMoveBPF(primaryControl) {
+
     var formContext = primaryControl;
-
     var accountId = formContext.data.entity.getId().replace(/[{}]/g, "");
-    var accountName = formContext.getAttribute("name").getValue();
 
-    var entityFormOptions = {
-        entityName: "cms_contract",
-        useQuickCreateForm: false
+    // create contract first (simplified)
+    var contract = {
+        "cms_name": "New Contract",
+        "cms_accountid@odata.bind": "/accounts(" + accountId + ")"
     };
 
-    // 👇 Lookup field parameters
-    var formParameters = {};
-    formParameters["cms_accountid"] = accountId;
-    formParameters["cms_accountidname"] = accountName;
-    formParameters["cms_accountidtype"] = "account";
+    Xrm.WebApi.createRecord("cms_contract", contract).then(
+        function (result) {
 
-    Xrm.Navigation.openForm(entityFormOptions, formParameters);
+            // Call Custom API
+            Xrm.WebApi.online.execute({
+                entityName: "cms_contract",
+                entityId: result.id.replace(/[{}]/g, ""),
+                operationName: "cms_MoveContractToNextStage"
+            }).then(
+                function () {
+                    Xrm.Navigation.openForm({
+                        entityName: "cms_contract",
+                        entityId: result.id
+                    });
+                }
+            );
+        }
+    );
 }

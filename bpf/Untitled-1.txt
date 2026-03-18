@@ -1,0 +1,195 @@
+/*Set(
+    gblQuoteDetailIDsText,
+    Param("recordId")
+);
+
+Set(
+    gblQuoteDetailIDs,
+    Filter(
+        ForAll(
+            Split(gblQuoteDetailIDsText, ","),
+            {
+                recordGuid: GUID(Trim(Text(ThisRecord.Value)))
+            }
+        ),
+        !IsBlank(recordGuid)
+    )
+);
+
+ClearCollect(
+    colQuoteDetails,
+    Filter(
+        'Quote Products',
+        'Quote Product' in gblQuoteDetailIDs.recordGuid
+    )
+);*/
+
+Set(varQuoteId, ModelDrivenFormIntegration.Item.Quote);
+
+Set(varLoading, true );
+
+Set(
+    test,
+    Documentname.Run().document_name
+);
+ClearCollect(
+    colDocumentGeneration,
+    
+    ForAll(
+        Table(ParseJSON(test)),
+        {
+            TemplateReportName: Text(Value.TemplateReportName)
+            
+        }
+    )
+);
+
+Set(
+    varQuoteRecord,
+    Param("sb1_quoteid")
+);
+
+Set(varQuoteId, Param("recordId"));
+
+Set(
+    varResponse,
+   'Quote-latestversionapi'.Run("42051").result
+);
+//"37325"
+//"39003"
+//40590
+//42051
+//[@ModelDrivenFormIntegration].Item.Quote_ID
+
+ClearCollect(colQuoteProduct,
+ ForAll(
+        Table(ParseJSON(varResponse)),
+        {
+            FormInstanceType: Text(Value.FormInstanceType),
+            FormInstanceName:Text(Value.FormInstanceName),
+            FolderVersionEffectiveDate:Text(
+                DateValue(Value.FolderVersionEffectiveDate),
+                "mm-dd-yyyy"),
+            FormInstanceID: Text(Value.FormInstanceID),
+            FolderID: Value.FolderID,
+            FolderVersionId: Value.FolderVersionId,
+            AnchorDocumentID: Text(Value.AnchorDocumentID)
+        }
+    )
+);
+
+ClearCollect(colPricingPremium,
+ ForAll(
+        Table(ParseJSON(varResponse)),
+        {
+            FormInstanceType: Text(Value.FormInstanceType),
+            FormInstanceName:Text(Value.FormInstanceName),
+            FolderVersionEffectiveDate:Text(
+                DateValue(Value.FolderVersionEffectiveDate),
+                "mm-dd-yyyy"),
+            FormInstanceID: Text(Value.FormInstanceID),
+            FolderID: Value.FolderID,
+            FolderVersionId: Value.FolderVersionId,
+            AnchorDocumentID: Text(Value.AnchorDocumentID),
+            TotalEstimatedMonthlyPremium : Text(Value. TotalEstimatedMonthlyPremium),
+            PlanOverViewList : JSON(Value.PlanOverViewList),
+            PremiumsOverviewList : JSON(Value.PremiumsOverviewList),
+            PackageOverviewList:JSON(Value.PackageOverviewList),
+            MedicalPlanOverviewList : JSON(Value.MedicalPlanOverviewList),
+            RxPlanOverviewList : JSON(Value.RxPlanOverviewList),
+            DentalPlanCoinsuranceOverviewList : JSON(Value.DentalPlanCoinsuranceOverviewList),
+            DentalPlanOverviewList : JSON(Value.DentalPlanOverviewList),
+            VisionPlanOverviewList : JSON(Value.VisionPlanOverviewList)
+        }
+    )
+);
+/*ClearCollect(
+    colPlanOverview,
+        ForAll(
+            Table(ParseJSON(ThisRecord.PlanOverViewList)),
+            {
+                MedicalCoinsurance: Text(Value.MedicalCoinsurance),
+                MedicalCoverageLevel: Text(Value.MedicalCoverageLevel),
+                MedicalDeductible: Text(Value.MedicalDeductible),
+                MedicalOutofPocket : Text(Value.MedicalOutofPocket),
+                NetworkTier: Text(Value.NetworkTier)
+            }
+        )
+);*/
+ 
+
+ClearCollect(
+    colQuoteFolderName,
+    ForAll(
+        Table(ParseJSON(varResponse)),
+        {
+            FolderName: Trim(
+                First(
+                    Split(Text(Value.FolderName), "|")
+                ).Value
+            )
+        }
+    )
+);
+
+Set(
+    varFolderCode,
+    Trim(
+        First(
+            Split(
+                Text(First(Table(ParseJSON(varResponse))).Value.FolderName),
+                "|"
+            )
+        ).Value
+    )
+);
+
+
+
+/*Clear(colQuoteProduct);
+Collect(colQuoteProduct, ForAll(
+    Table(ParseJSON(varResponse)),{ 
+        FormInstanceType: Text(Value.FormInstanceType),
+            FormInstanceName:Text(Value.FormInstanceName),
+            FolderVersionEffectiveDate:Text(
+                DateValue(Value.FolderVersionEffectiveDate),
+                "dd-mm-yyyy"),
+            FormInstanceID: Text(Value.FormInstanceID),
+            FolderID: Value.FolderID,
+            FolderVersionId: Value.FolderVersionId,
+            AnchorDocumentID: Text(Value.AnchorDocumentID)
+
+    }
+));*/
+
+Set(varLoading, false );
+
+Set(varQuoteId, Param("recordId"));
+If(IsBlank(varQuoteId), Set(varQuoteId, Param("recordId")));
+
+// This collect for one save button 
+/*ClearCollect(
+    colOriginalProducts,
+    colQuoteProduct
+);*/
+
+
+Set(varQuoteType,  ModelDrivenFormIntegration.Item.'Quote Edit');
+Set(varQuoteStatus, ModelDrivenFormIntegration.Item.'Quote Status (sb1_quotestatus)');
+//Set(varQuoteType, "Yes");
+If(Lower(varQuoteType) = Lower("No") Or Lower(varQuoteStatus) = Lower("Won") Or Lower(varQuoteStatus) = Lower("Rejected") ,
+  Set(varEditPlan, "Read"),
+  Set(varEditPlan, "Edit"));
+
+
+Set(varTrigger, false);
+
+Set(
+    varB1ApiToken,
+    LookUp(
+        'B1 API Tokens',
+        true   // or use a logical condition if you have one
+    )
+);
+
+Set(varSmartConfigToken , varB1ApiToken.Token);

@@ -17,28 +17,45 @@ function markAsComplete(primaryControl) {
   formContext.data.refresh(true);
 }
 
-async function moveToNextStage(formContext, currentBpfStage) {
-          if (!formContext.data.process) {
+function moveToNextStage(formContext, currentBpfStage) {
+
+    if (!formContext.data.process) {
         console.log("BPF is not available on this form.");
         return;
     }
-    // ✅ NEW: If already on Sold → finish BPF
+
+    // If already on Sold → finish BPF
     if (currentBpfStage === "Sold") {
-        await syncQuoteWorkflowConfiguration(formContext,currentBpfStage);
+
+        syncQuoteWorkflowConfiguration(formContext, currentBpfStage);
         finishBpf(formContext);
-        formContext.getAttribute("sb1_quotestatus").setValue(4);// 🔥 NEW CALL
+        formContext.getAttribute("sb1_quotestatus").setValue(4);
         return;
     }
-     else{
-       formContext.data.process.moveNext(
-       async function () {
-               syncQuoteWorkflowConfiguration(formContext, currentBpfStage);
-           },
-           function (error) {
-               console.error("Move next failed: " + error.message);
-           }
-       );  
-    }    
+
+    // Move to next stage
+    formContext.data.save().then(
+            function () {
+    // Move to next stage
+    formContext.data.process.moveNext(
+        function (result) {
+
+            if (result === "success") {
+                console.log("Moved to next stage successfully.");
+formContext.data.save().then(
+            function () {   
+                // Call flow AFTER successful move
+                syncQuoteWorkflowConfiguration(formContext, currentBpfStage);
+});
+            } else {
+                console.log("Move next result: " + result);
+            }
+        },
+        function (error) {
+            console.error("Move next failed: " + error.message);
+        }
+    );
+});
 }
 
 async function syncQuoteWorkflowConfiguration(formContext, currentBpfStage) {
@@ -147,7 +164,9 @@ async function applyQuoteWorkflowLogic(formContext, config, currentBpfStage) {
         setAllFieldsReadOnly(formContext);
     }
 
-
+    if(postStageChange == internalReviewStage || postStageChange == exceptionalStage || postStageChange == submitStage){
+        setAllFieldsReadOnly(formContext);
+    }
     console.log("Current Stage:", postStageChange);
     var workflowStageValue = "";
 
@@ -177,7 +196,11 @@ async function applyQuoteWorkflowLogic(formContext, config, currentBpfStage) {
             return; // no call
     }
       console.log(workflowStageValue);
-      await callSyncApiOnChangeStage(formContext,folderVersionId, quoteType, workflowStageValue);
+      formContext.data.save().then(
+            async function () {
+            await callSyncApiOnChangeStage(formContext,folderVersionId, quoteType, workflowStageValue);
+      });
+      
 }
 
 
@@ -326,7 +349,7 @@ async function submitQuoteToUW(formContext) {
                 text: errorMsg
             });
 
-            moveBPFToPreviousStage(formContext);
+           await moveBPFToPreviousStage(formContext);
             return "Failed";
         }
     } catch (error) {
@@ -340,7 +363,7 @@ async function submitQuoteToUW(formContext) {
     }
 }
 
-function moveBPFToPreviousStage(formContext) {
+async function moveBPFToPreviousStage(formContext) {
     var currentStage = formContext.data.process.getActiveStage();
     if (!currentStage) return;
     var currentStageName = currentStage.getName();
@@ -398,6 +421,7 @@ function moveBPFToPreviousStage(formContext) {
         );
 
     }).then(function () {
+        formContext.data.save();
         console.log("Successfully moved back to:", previousStageName);
 
     }).catch(function (error) {
@@ -479,197 +503,163 @@ clearInterval(interval);
 // Reject Quote 
 
 async function markAsReject(primaryControl) {
-    debugger;
-    var formContext = primaryControl;
+
+    const formContext = primaryControl;
     const folderVersionId = formContext.getAttribute("sb1_quoteid").getValue();
-    var recordId = formContext.data.entity.getId().replace(/[{}]/g, "");
-    callRejectQuoteCustomApi(folderVersionId, recordId,formContext);
-    var quoteStatus = formContext.getAttribute("sb1_quotestatus").getValue();
-    if (quoteStatus != 4) {
-        formContext.getAttribute("sb1_quotestatus").setValue(3);
+    const recordId = formContext.data.entity.getId().replace(/[{}]/g, "");
+
+    try {
+
+        Xrm.Utility.showProgressIndicator("Rejecting Quote...");
+
+
+        formContext.data.save().then(
+            async function () {   
+                // Call flow AFTER successful move
+              await callRejectQuoteCustomApi(folderVersionId, recordId);
+            });       
+
+        // ✅ Step 2: ONLY if above succeeds
+        await rejectQuoteChangeStage(formContext, recordId);
+
+        // ✅ Step 3: Save + Refresh
+        await formContext.data.save();
+        await formContext.data.refresh(true);
+
+        await Xrm.Navigation.openAlertDialog({
+            title: "Success",
+            text: "Quote rejected successfully."
+        });
+
+    } catch (error) {
+
+        await Xrm.Navigation.openAlertDialog({
+            title: "Failed",
+            text: error.message
+        });
+
+    } finally {
+        Xrm.Utility.closeProgressIndicator();
     }
-    formContext.data.refresh(true);
 }
 
-async function callRejectQuoteCustomApi(folderVersionId, recordId,formContext) {
-
-     Xrm.Utility.showProgressIndicator("Rejecting Quote ...");
+async function callRejectQuoteCustomApi(folderVersionId, recordId) {
 
     if (!folderVersionId || !recordId) {
-        Xrm.Navigation.openAlertDialog({
-            text: "Folder Version Id or Quote Id is missing."
-        });
-        return;
+        throw new Error("Folder Version Id or Quote Id is missing.");
     }
 
-    // remove {}
-    recordId = recordId.replace(/[{}]/g, "");
-
-    var request = {
+    const request = {
         sb1_folderversion_id_reject: folderVersionId,
         sb1_guid: recordId,
-
         getMetadata: function () {
             return {
                 boundParameter: null,
                 parameterTypes: {
                     "sb1_folderversion_id_reject": {
                         typeName: "Edm.Int32",
-                        structuralProperty: 1 // PrimitiveType
+                        structuralProperty: 1
                     },
                     "sb1_guid": {
                         typeName: "Edm.String",
                         structuralProperty: 1
                     }
                 },
-                operationType: 0, // Action
+                operationType: 0,
                 operationName: "sb1_reject_quote_sync_with_b1"
             };
         }
     };
 
-   await Xrm.WebApi.online.execute(request)
-        .then(async function (response) {
-            if (response.ok) {
-                await rejectQuoteChangeStage(formContext,recordId);
-                Xrm.Navigation.openAlertDialog({
-                    title: "Success",
-                    text: "Quote rejected and synced with B1 successfully."
-           
-            });
-        }
-            else{
-                 Xrm.Navigation.openAlertDialog({
-                    title: "Failed",
-                    text: "Quote rejection failed."
-                });
-            }
-        })
-        .catch(function (error) {
-            console.error(error);
-             Xrm.Navigation.openAlertDialog({
-                    title: "Failed",
-                    text: "Quote rejection failed."
-                });
-        });
-         Xrm.Utility.closeProgressIndicator();
+    const response = await Xrm.WebApi.online.execute(request);
+
+    if (!response.ok) {
+        throw new Error("Quote rejection failed from API.");
+    }
+
+    // Optional: check response body if needed
+    return true; // success
 }
 
-async function rejectQuoteChangeStage(formContext,recordId) {
+async function rejectQuoteChangeStage(formContext, recordId) {
 
-    var rejectedStageName = null;
     if (!recordId) {
-        Xrm.Navigation.openAlertDialog({ text: "Quote Id not found." });
+        await Xrm.Navigation.openAlertDialog({ text: "Quote Id not found." });
         return;
     }
 
-    // 1️⃣ Get Quote
-    Xrm.WebApi.retrieveRecord(
+    const quote = await Xrm.WebApi.retrieveRecord(
         "quote",
-        quoteId,
+        recordId,
         "?$select=sb1_quotetype,_sb1_quoteworkflowconfiguration_value"
-    ).then(function (quote) {
-
-        var configId = quote._sb1_quoteworkflowconfiguration_value;
-        if (!configId) {
-            throw new Error("Quote Workflow Configuration is missing.");
-        }
-
-        var isRenew = quote.sb1_quotetype === 1;
-
-        // 2️⃣ Get Workflow Configuration
-        return Xrm.WebApi.retrieveRecord(
-            "sb1_quoteworkflowconfiguration",
-            configId,
-            "?$select=sb1_quotestateifrejectedfornew,sb1_quotestateifrejectedforrenew"
-        ).then(function (config) {
-
-           rejectedStageName = isRenew
-                ? config.sb1_quotestateifrejectedforrenew
-                : config.sb1_quotestateifrejectedfornew;
-
-            if (!rejectedStageName) {
-                throw new Error("Rejected stage is not configured.");
-            }
-
-            return {
-                rejectedStageName: rejectedStageName
-            };
-        });
-
-    }).then(function (data) {
-
-        // 3️⃣ Get BPF instance
-        return Xrm.WebApi.retrieveMultipleRecords(
-            "sb1_quotequoteprocessflow",
-            "?$select=businessprocessflowinstanceid" +
-            "&$filter=_bpf_quoteid_value eq " + quoteId
-        ).then(function (result) {
-
-            if (result.entities.length === 0) {
-                throw new Error("BPF instance not found.");
-            }
-
-            return {
-                bpfId: result.entities[0].businessprocessflowinstanceid,
-                rejectedStageName: data.rejectedStageName
-            };
-        });
-
-    }).then(function (data) {
-
-        // 4️⃣ Get Process Stage
-        return Xrm.WebApi.retrieveMultipleRecords(
-            "processstage",
-            "?$select=processstageid" +
-            "&$filter=stagename eq '" + data.rejectedStageName + "'"
-        ).then(function (result) {
-
-            if (result.entities.length === 0) {
-                throw new Error("Rejected BPF stage not found.");
-            }
-
-            return {
-                bpfId: data.bpfId,
-                stageId: result.entities[0].processstageid,
-                rejectedStageName : data.rejectedStageName
-            };
-        });
-
-    }).then(function (data) {
-
-        // 5️⃣ Update BPF Active Stage
-        return Xrm.WebApi.updateRecord(
-            "sb1_quotequoteprocessflow",
-            data.bpfId,
-            {
-                "activestageid@odata.bind":
-                    "/processstages(" + data.stageId + ")"
-            }
-        ),
-        data.rejectedStageName;
-        }).then(function (data) {
-        return Xrm.WebApi.retrieveMultipleRecords(
-        "sb1_quotequoteprocessflow",
-        "?$select=businessprocessflowinstanceid" +
-        "&$filter=_bpf_quoteid_value eq " + quoteId
     );
-    }).then(
-        function () {
-            formContext.getAttribute("sb1_quotestatus").setValue(1);
-            formContext.getAttribute("sb1_quotestage").setValue(918580000);
-            setFieldsEditable(formContext);
-        }).catch(function (error) {
-            Xrm.Navigation.openAlertDialog({ text: error.message });
-        });
- formContext.data.refresh(true);
+
+    const configId = quote._sb1_quoteworkflowconfiguration_value;
+
+    if (!configId)
+        throw new Error("Quote Workflow Configuration is missing.");
+
+    const config = await Xrm.WebApi.retrieveRecord(
+        "sb1_quoteworkflowconfiguration",
+        configId,
+        "?$select=sb1_quotestateifrejectedfornew,sb1_quotestateifrejectedforrenew"
+    );
+
+    const isRenew = quote.sb1_quotetype === 1;
+
+    const rejectedStageName = isRenew
+        ? config.sb1_quotestateifrejectedforrenew
+        : config.sb1_quotestateifrejectedfornew;
+
+    if (!rejectedStageName)
+        throw new Error("Rejected stage is not configured.");
+
+    const bpfResult = await Xrm.WebApi.retrieveMultipleRecords(
+        "sb1_quotequoteprocessflow",
+        `?$select=businessprocessflowinstanceid&$filter=_bpf_quoteid_value eq ${recordId}`
+    );
+
+    if (!bpfResult.entities.length)
+        throw new Error("BPF instance not found.");
+
+    const bpfId = bpfResult.entities[0].businessprocessflowinstanceid;
+
+    const stageResult = await Xrm.WebApi.retrieveMultipleRecords(
+        "processstage",
+        `?$select=processstageid&$filter=stagename eq '${rejectedStageName}'`
+    );
+
+    if (!stageResult.entities.length)
+        throw new Error("Rejected BPF stage not found.");
+
+    const stageId = stageResult.entities[0].processstageid;
+
+    // ✅ Proper await here
+    await Xrm.WebApi.updateRecord(
+        "sb1_quotequoteprocessflow",
+        bpfId,
+        {
+            "activestageid@odata.bind": `/processstages(${stageId})`
+        }
+    );
+
+    setFieldsEditable(formContext);
+
+    // Now update fields AFTER stage update
+    formContext.getAttribute("sb1_quotestatus").setValue(1);
+    formContext.getAttribute("sb1_quoteedit").setValue(1);
+    formContext.getAttribute("sb1_quotestage").setValue(918580000);
+
+    await formContext.data.save();
 }
 
 function syncQuoteWorkflowConfigurationOnload(executionContext) {
     var formContext = executionContext.getFormContext();
+     var formType = formContext.ui.getFormType();
+    if (formType == 1) return;
     var quoteEdit = formContext.getAttribute("sb1_quoteedit").getValue();
-    if(quoteEdit == 1){
+    if(quoteEdit == 2 ){
         setAllFieldsReadOnly(formContext);
+        formContext.data.refresh(true);
     }
-    formContext.data.refresh(true);
 }

@@ -1,0 +1,48 @@
+
+{
+    "type": "object",
+    "properties": {
+        "Errors": {
+            "type": "array",
+            "items": {}
+        },
+        "Result": {
+            "type": "object",
+            "properties": {
+                "Status": {
+                    "type": "string"
+                },
+                "Data": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "Date": {
+                                "type": "string"
+                            },
+                            "FeedbackSummary": {
+                                "type": "string"
+                            },
+                            "QuoteStatus": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "Date",
+                            "FeedbackSummary",
+                            "QuoteStatus"
+                        ]
+                    }
+                }
+            },
+            "required": [
+                "Status",
+                "Data"
+            ]
+        }
+    },
+    "required": [
+        "Errors",
+        "Result"
+    ]
+}

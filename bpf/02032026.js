@@ -17,28 +17,44 @@ function markAsComplete(primaryControl) {
   formContext.data.refresh(true);
 }
 
-async function moveToNextStage(formContext, currentBpfStage) {
-          if (!formContext.data.process) {
+function moveToNextStage(formContext, currentBpfStage) {
+
+    if (!formContext.data.process) {
         console.log("BPF is not available on this form.");
         return;
     }
-    // ✅ NEW: If already on Sold → finish BPF
+
+    // If already on Sold → finish BPF
     if (currentBpfStage === "Sold") {
-        await syncQuoteWorkflowConfiguration(formContext,currentBpfStage);
+
+        syncQuoteWorkflowConfiguration(formContext, currentBpfStage);
         finishBpf(formContext);
-        formContext.getAttribute("sb1_quotestatus").setValue(4);// 🔥 NEW CALL
+        formContext.getAttribute("sb1_quotestatus").setValue(4);
         return;
     }
-     else{
-       formContext.data.process.moveNext(
-       async function () {
-               syncQuoteWorkflowConfiguration(formContext, currentBpfStage);
-           },
-           function (error) {
-               console.error("Move next failed: " + error.message);
-           }
-       );  
-    }    
+
+    // Move to next stage
+    formContext.data.save().then(
+            function () {
+    // Move to next stage
+    formContext.data.process.moveNext(
+        function (result) {
+
+            if (result === "success") {
+                console.log("Moved to next stage successfully.");
+
+                // Call flow AFTER successful move
+                syncQuoteWorkflowConfiguration(formContext, currentBpfStage);
+
+            } else {
+                console.log("Move next result: " + result);
+            }
+        },
+        function (error) {
+            console.error("Move next failed: " + error.message);
+        }
+    );
+});
 }
 
 async function syncQuoteWorkflowConfiguration(formContext, currentBpfStage) {
@@ -667,9 +683,11 @@ async function rejectQuoteChangeStage(formContext,recordId) {
 
 function syncQuoteWorkflowConfigurationOnload(executionContext) {
     var formContext = executionContext.getFormContext();
+     var formType = formContext.ui.getFormType();
+    if (formType == 1) return;
     var quoteEdit = formContext.getAttribute("sb1_quoteedit").getValue();
-    if(quoteEdit == 1){
+    if(quoteEdit == 1 ){
         setAllFieldsReadOnly(formContext);
+        formContext.data.refresh(true);
     }
-    formContext.data.refresh(true);
 }
